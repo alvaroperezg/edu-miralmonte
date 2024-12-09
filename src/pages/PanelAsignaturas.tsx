@@ -1,158 +1,186 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-
-interface Profesor {
-  id: number;
-  nombre: string;
-}
+import '../styles.css';
 
 interface Asignatura {
   id: number;
   nombre: string;
-  descripcion: string;
-  profesorId: number | null;
-  profesor?: Profesor;
+}
+
+interface Profesor {
+  id: number;
+  nombre: string;
+  asignaturas: number[]; // Array de IDs de asignaturas
+}
+
+interface Curso {
+  id: number;
+  nombre: string;
 }
 
 const PanelAsignaturas: React.FC = () => {
   const [asignaturas, setAsignaturas] = useState<Asignatura[]>([]);
   const [profesores, setProfesores] = useState<Profesor[]>([]);
+  const [cursos, setCursos] = useState<Curso[]>([]);
   const [nuevaAsignatura, setNuevaAsignatura] = useState<Asignatura>({
     id: 0,
     nombre: '',
-    descripcion: '',
-    profesorId: null,
   });
 
-  const [tableKey, setTableKey] = useState(0); // Controlará la recreación de la tabla
-
-  // Cargar asignaturas y profesores desde el backend
+  // Cargar asignaturas, cursos y profesores desde el backend
   useEffect(() => {
-    axios.get('http://localhost:5000/api/asignaturas')
-      .then((response) => setAsignaturas(response.data))
-      .catch((error) => console.error('Error al cargar las asignaturas:', error));
+    const fetchData = async () => {
+      try {
+        const [asignaturasRes, profesoresRes, cursosRes] = await Promise.all([
+          axios.get('http://localhost:5000/api/asignaturas'),
+          axios.get('http://localhost:5000/api/profesores'),
+          axios.get('http://localhost:5000/api/cursos'),
+        ]);
 
-    axios.get('http://localhost:5000/api/profesores')
-      .then((response) => setProfesores(response.data))
-      .catch((error) => console.error('Error al cargar los profesores:', error));
+        setAsignaturas(asignaturasRes.data || []);
+        setProfesores(profesoresRes.data || []);
+        setCursos(cursosRes.data || []);
+      } catch (error) {
+        console.error('Error al cargar los datos:', error);
+      }
+    };
+
+    fetchData();
   }, []);
 
-  // Manejar cambios en el formulario
-  const manejarCambio = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    setNuevaAsignatura({
-      ...nuevaAsignatura,
-      [e.target.name]: e.target.value,
-    });
-  };
-
   const guardarAsignatura = () => {
-    if (nuevaAsignatura.nombre && nuevaAsignatura.descripcion) {
+    if (nuevaAsignatura.nombre) {
       if (nuevaAsignatura.id === 0) {
         // Crear nueva asignatura
-        axios.post('http://localhost:5000/api/asignaturas', nuevaAsignatura)
-          .then(() => {
-            // Recargar asignaturas desde el backend
-            axios.get('http://localhost:5000/api/asignaturas')
-              .then((response) => setAsignaturas(response.data))
-              .catch((error) => console.error('Error al recargar las asignaturas:', error));
-            // Limpiar el formulario
-            setNuevaAsignatura({ id: 0, nombre: '', descripcion: '', profesorId: null });
+        axios
+          .post('http://localhost:5000/api/asignaturas', nuevaAsignatura)
+          .then((response) => {
+            setAsignaturas((prev) => [...prev, response.data]);
+            setNuevaAsignatura({ id: 0, nombre: '' });
           })
-          .catch((error) => console.error('Error al guardar la asignatura:', error));
+          .catch((error) =>
+            console.error('Error al guardar la asignatura:', error)
+          );
       } else {
         // Editar asignatura existente
-        axios.put(`http://localhost:5000/api/asignaturas/${nuevaAsignatura.id}`, nuevaAsignatura)
-          .then(() => {
-            // Recargar asignaturas desde el backend
-            axios.get('http://localhost:5000/api/asignaturas')
-              .then((response) => setAsignaturas(response.data))
-              .catch((error) => console.error('Error al recargar las asignaturas:', error));
-            // Limpiar el formulario
-            setNuevaAsignatura({ id: 0, nombre: '', descripcion: '', profesorId: null });
+        axios
+          .put(
+            `http://localhost:5000/api/asignaturas/${nuevaAsignatura.id}`,
+            nuevaAsignatura
+          )
+          .then((response) => {
+            setAsignaturas((prev) =>
+              prev.map((asignatura) =>
+                asignatura.id === response.data.id
+                  ? response.data
+                  : asignatura
+              )
+            );
+            setNuevaAsignatura({ id: 0, nombre: '' });
           })
-          .catch((error) => console.error('Error al editar la asignatura:', error));
+          .catch((error) =>
+            console.error('Error al editar la asignatura:', error)
+          );
       }
     } else {
-      alert('Por favor completa los campos obligatorios.');
+      alert('Por favor completa el nombre de la asignatura.');
     }
-  };  
-
-  // Eliminar asignatura
-  const eliminarAsignatura = (id: number) => {
-    axios.delete(`http://localhost:5000/api/asignaturas/${id}`)
-      .then(() => setAsignaturas(asignaturas.filter((a) => a.id !== id)))
-      .catch((error) => console.error('Error al eliminar la asignatura:', error));
   };
 
-  // Cargar datos en el formulario para editar
+  const eliminarAsignatura = (id: number) => {
+    axios
+      .delete(`http://localhost:5000/api/asignaturas/${id}`)
+      .then(() =>
+        setAsignaturas(asignaturas.filter((a) => a.id !== id))
+      )
+      .catch((error) =>
+        console.error('Error al eliminar la asignatura:', error)
+      );
+  };
+
   const editarAsignatura = (asignatura: Asignatura) => {
     setNuevaAsignatura(asignatura);
   };
 
   return (
-    <div style={{ padding: '20px' }}>
+    <div className="container">
       <h1>Gestión de Asignaturas</h1>
 
-      <div style={{ marginBottom: '20px' }}>
+      <div className="form-section">
         <h3>Agregar o Editar Asignatura</h3>
-        <input
-          type="text"
-          name="nombre"
-          placeholder="Nombre"
-          value={nuevaAsignatura.nombre}
-          onChange={manejarCambio}
-          style={{ marginRight: '10px' }}
-        />
-        <input
-          type="text"
-          name="descripcion"
-          placeholder="Descripción"
-          value={nuevaAsignatura.descripcion}
-          onChange={manejarCambio}
-          style={{ marginRight: '10px' }}
-        />
-        <select
-          name="profesorId"
-          value={nuevaAsignatura.profesorId || ''}
-          onChange={(e) => setNuevaAsignatura({ ...nuevaAsignatura, profesorId: parseInt(e.target.value) })}
-          style={{ marginRight: '10px' }}
-        >
-          <option value="">Seleccionar Profesor</option>
-          {profesores.map((profesor) => (
-            <option key={profesor.id} value={profesor.id}>
-              {profesor.nombre}
-            </option>
-          ))}
-        </select>
-        <button onClick={guardarAsignatura}>Guardar</button>
-      </div>
-      <div key={tableKey}>
-        <table border={1} style={{ width: '100%', textAlign: 'left' }}>
-            <thead>
-            <tr>
-                <th>Nombre</th>
-                <th>Descripción</th>
-                <th>Profesor</th>
-                <th>Acciones</th>
-            </tr>
-            </thead>
-            <tbody>
-            {asignaturas.map((asignatura) => (
-                <tr key={asignatura.id}>
-                <td>{asignatura.nombre}</td>
-                <td>{asignatura.descripcion}</td>
-                <td>{asignatura.profesor ? asignatura.profesor.nombre : 'Sin asignar'}</td>
-                <td>
-                    <button onClick={() => editarAsignatura(asignatura)}>Editar</button>
-                    <button onClick={() => eliminarAsignatura(asignatura.id)} style={{ marginLeft: '10px' }}>
-                    Eliminar
-                    </button>
-                </td>
-                </tr>
-            ))}
-            </tbody>
-        </table>
+        <div className="form-group">
+          <input
+            type="text"
+            name="nombre"
+            placeholder="Nombre de la asignatura"
+            value={nuevaAsignatura.nombre}
+            onChange={(e) =>
+              setNuevaAsignatura({
+                ...nuevaAsignatura,
+                nombre: e.target.value,
+              })
+            }
+          />
         </div>
+        <div className="button-group">
+          <button className="button primary" onClick={guardarAsignatura}>
+            Guardar
+          </button>
+          <button
+            className="button danger"
+            onClick={() => setNuevaAsignatura({ id: 0, nombre: '' })}
+          >
+            Limpiar
+          </button>
+        </div>
+      </div>
+      <table className="table">
+        <thead>
+          <tr>
+            <th>Nombre</th>
+            <th>Cursos</th>
+            <th>Profesores</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          {asignaturas.map((asignatura) => (
+            <tr key={asignatura.id}>
+              <td>{asignatura.nombre}</td>
+              <td>
+                {cursos
+                  .filter((curso) =>
+                    curso.asignaturas?.includes(asignatura.id)
+                  )
+                  .map((curso) => curso.nombre)
+                  .join(', ') || 'Sin curso'}
+              </td>
+              <td>
+                {profesores
+                  .filter((profesor) =>
+                    profesor.asignaturas?.includes(asignatura.id)
+                  )
+                  .map((profesor) => profesor.nombre)
+                  .join(', ') || 'Sin profesor'}
+              </td>
+              <td className="table-actions">
+                <button
+                  className="button edit"
+                  onClick={() => editarAsignatura(asignatura)}
+                >
+                  Editar
+                </button>
+                <button
+                  className="button danger"
+                  onClick={() => eliminarAsignatura(asignatura.id)}
+                >
+                  Eliminar
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 };
